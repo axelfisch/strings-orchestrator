@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .tab-button { @apply inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-slate-400 transition; }
+  .tab-active { @apply bg-amber-500 text-slate-950 shadow-lg; }
+  .control-label { @apply flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500; }
+  .control-label select { @apply min-h-10 rounded-lg border border-slate-700 bg-slate-800 px-3 text-sm font-semibold normal-case tracking-normal text-white outline-none focus:border-amber-500; }
+  .export-button { @apply min-h-10 inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-bold transition hover:-translate-y-0.5 hover:brightness-110; }
+}
+
+.grid-cols-32 { grid-template-columns: repeat(32, minmax(0, 1fr)); }
+
 /* Circular Selector Animations */
 .ring {
   transition: transform 0.6s ease-in-out, opacity 0.3s ease;

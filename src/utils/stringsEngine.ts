@@ -12,16 +12,6 @@ import orchestrationRules from '../data/AiXEL_StringsOrchestrationRules.json';
 // ============================================================================
 
 // Interval semitones from root
-const INTERVALS = {
-  'R': 0, '1': 0,
-  'b2': 1, '2': 2, '9': 14, 'b9': 13, '#9': 15,
-  'b3': 3, '3': 4,
-  '4': 5, '11': 17, '#11': 18,
-  'b5': 6, '5': 7, '#5': 8, '5+': 8,
-  'b6': 8, '6': 9, '13': 21, 'b13': 20,
-  'b7': 10, '7': 11, 'maj7': 11, '7+': 11
-};
-
 // Voicing blueprints from AiXEL profile
 // Order: from bass to soprano (how notes should be stacked)
 const VOICING_BLUEPRINTS: Record<string, { intervals: number[], description: string }> = {
@@ -518,6 +508,7 @@ export class StringsEngine {
   }
 
   private expandVoicing(notes: number[], root: number): number[] {
+    void root;
     const expanded = [...notes];
     
     // Ensure we have at least 6 distinct pitch classes

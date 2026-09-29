@@ -2,7 +2,6 @@
 // Orchestral Strings with ECM-style sound using 6-voice ensemble
 // by AxelFisch©2025/2026
 
-import * as Tone from 'tone';
 import { ChordInSequence, BarConfig } from '../App';
 import { chordToMidiNotes, getChordSymbol } from './chordMapper';
 import { StringsEngine, getStringsEngine } from './stringsEngine';

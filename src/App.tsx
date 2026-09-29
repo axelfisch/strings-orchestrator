@@ -4,6 +4,7 @@ import CircularSelector from './components/CircularSelector';
 import ChordDisplay from './components/ChordDisplay';
 import ChordSequencer from './components/ChordSequencer';
 import OrchestrationPanel from './components/OrchestrationPanel';
+import ArrangerPanel from './components/ArrangerPanel';
 
 export interface ChordInSequence {
   id: string;
@@ -21,6 +22,7 @@ export interface BarConfig {
 }
 
 function App() {
+  const [activeTab, setActiveTab] = useState<'arranger' | 'builder'>('arranger');
   const [selectedKey, setSelectedKey] = useState<string>('C');
   const [selectedExtension, setSelectedExtension] = useState<string>('');
   const [selectedBassInversion, setSelectedBassInversion] = useState<string>('');
@@ -93,6 +95,12 @@ function App() {
         </p>
       </div>
 
+      <div className="mx-auto mb-6 flex rounded-full border border-slate-700 bg-slate-900 p-1">
+        <button onClick={() => setActiveTab('arranger')} className={`tab-button ${activeTab === 'arranger' ? 'tab-active' : ''}`}><Sparkles className="w-4 h-4"/> 32-Bar Arranger</button>
+        <button onClick={() => setActiveTab('builder')} className={`tab-button ${activeTab === 'builder' ? 'tab-active' : ''}`}><Music className="w-4 h-4"/> Chord Builder</button>
+      </div>
+      {activeTab === 'arranger' && <ArrangerPanel />}
+      {activeTab === 'builder' && <div>
       {/* Main Content */}
       <div className="flex flex-col xl:flex-row gap-4 md:gap-6 mb-4 md:mb-6 max-w-[1920px] mx-auto w-full items-start justify-center px-2">
         {/* Left: Circular Selector */}
@@ -162,6 +170,7 @@ function App() {
           Violin 1 & 2 • Viola 1 & 2 • Cello • Contrabass
         </p>
       </div>
+      </div>}
     </div>
   );
 }

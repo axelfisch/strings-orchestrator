@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // AiXEL Engine - Integration with AIXEL_MASTER_MODEL_2025_FULL
 // Handles harmonic language, voicings, and ECM-style composition rules
 
@@ -25,8 +26,8 @@ export class AiXELEngine {
   private profile: any;
 
   constructor() {
-    this.harmonicDictionary = aixelMasterModel.harmony_dictionary;
-    this.profile = aixelMasterModel.profile;
+    this.harmonicDictionary = aixelMasterModel.datasets.full_jazz_chords_clean;
+    this.profile = aixelMasterModel.datasets.aixel_full_profile_v1;
   }
 
   // Get all available chord types for a given key
@@ -106,6 +107,8 @@ export class AiXELEngine {
 
   // Get harmonic progression suggestions based on AiXEL rules
   suggestProgression(key: string, bars: number = 8): string[] {
+    void key;
+    void bars;
     const recipes = this.profile.harmonic_language.progression_recipes || [];
     if (recipes.length === 0) return [];
 
@@ -116,6 +119,7 @@ export class AiXELEngine {
 
   // Get scale for improvisation based on chord
   getScale(key: string, extension: string): string {
+    void key;
     const scaleMapping = this.profile.scale_mapping || {};
 
     // Try to match extension pattern
@@ -148,6 +152,8 @@ export class AiXELEngine {
 
   // Get bass movement suggestions
   getBassMovement(fromKey: string, toKey: string): string {
+    void fromKey;
+    void toKey;
     const guidelines = this.profile.bass_cello_guidelines?.bass || '';
     return guidelines;
   }

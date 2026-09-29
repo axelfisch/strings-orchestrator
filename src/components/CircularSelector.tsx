@@ -239,7 +239,7 @@ export default function CircularSelector({ onSelectionChange, onStyleChange }: C
       ctx.font = 'bold 12px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(label, 0, 0);
+      ctx.fillText(String(label), 0, 0);
       ctx.restore();
     });
 
@@ -303,7 +303,6 @@ export default function CircularSelector({ onSelectionChange, onStyleChange }: C
     const outerRadius = 320;
     const keyRadius = 270;
     const extensionRadius = 180;
-    const bassInversionRadius = 145;
     const centerRadius = 120;
 
     // Check if click is in style ring (outermost)
