@@ -27,6 +27,7 @@ import {
   type NoteEvent,
   type ProjectBar,
   type StyleName,
+  type StyleProfile,
   type VoiceName,
 } from "./types";
 import "./circular.css";
@@ -104,14 +105,16 @@ export function Studio() {
   const [lockedVoices, setLockedVoices] = useState<VoiceName[]>([]);
   const [voiceHolds, setVoiceHolds] = useState<Partial<Record<VoiceName, NoteEvent[]>>>({});
   const [barHolds, setBarHolds] = useState<Record<number, NoteEvent[]>>({});
-  const [showingB, setShowingB] = useState(false);
+  const [importedProfile, setImportedProfile] = useState<StyleProfile | null>(null);
+  const [profileNote, setProfileNote] = useState("");
   const [variantB, setVariantB] = useState<ProjectBar[] | null>(saved?.variantB ?? null);
+  const [showingB, setShowingB] = useState(false);
   const history = useRef<string[]>([]);
   const future = useRef<string[]>([]);
   const player = useRef<PlayerHandle | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const profile = useMemo(() => profileFrom(corpus), [corpus]);
+  const profile = useMemo(() => importedProfile ?? profileFrom(corpus), [corpus, importedProfile]);
   const arrangement = useMemo(
     () =>
       arrange({
@@ -173,6 +176,59 @@ export function Studio() {
     history.current.push(snapshot());
     if (history.current.length > 40) history.current.shift();
     future.current = [];
+  };
+
+  const toggleSplit = () => {
+    remember();
+    setBars((current) =>
+      current.map((bar, index) => {
+        if (index !== active || bar.locked) return bar;
+        return bar.second ? { ...bar, second: null } : { ...bar, second: symbol, origin: "manual" };
+      }),
+    );
+  };
+
+  const lockSection = () => {
+    const section = arrangement.bars[active]?.section;
+    if (!section) return;
+    remember();
+    const indexes = arrangement.bars.flatMap((bar, index) => (bar.section === section ? [index] : []));
+    const locking = indexes.some((index) => !bars[index]?.locked);
+    setBars((current) => current.map((bar, index) => (indexes.includes(index) ? { ...bar, locked: locking } : bar)));
+    setBarHolds((current) => {
+      const copy = { ...current };
+      indexes.forEach((index) => {
+        const number = index + 1;
+        if (locking) copy[number] = arrangement.notes.filter((note) => note.bar === number);
+        else delete copy[number];
+      });
+      return copy;
+    });
+  };
+
+  const freshProject = () => {
+    remember();
+    setName("Sextuor sans titre");
+    setBars(generateGrid({ key: keyName, mode, length, seed }));
+    setVariantB(null);
+    setVoiceHolds({});
+    setLockedVoices([]);
+    setBarHolds({});
+    setBeat(0);
+  };
+
+  const importProfileFile = async (file: File) => {
+    try {
+      const data = JSON.parse(await file.text()) as StyleProfile;
+      if (data?.version !== 1 || typeof data.noteCount !== "number") {
+        setProfileNote("Profil refusé : JSON version 1 attendu.");
+        return;
+      }
+      setImportedProfile(data);
+      setProfileNote(`Profil importé : ${data.sourceFiles} fichier(s), ${data.noteCount} notes.`);
+    } catch {
+      setProfileNote("Profil illisible.");
+    }
   };
 
   const placeChord = () => {
@@ -400,6 +456,7 @@ export function Studio() {
           <input type="number" value={seed} onChange={(event) => setSeed(Number(event.target.value) || 1)} />
         </label>
         <button className="cso-btn primary" onClick={generate}>Générer la grille</button>
+        <button className="cso-btn" onClick={freshProject}>Nouveau projet</button>
         <button className="cso-btn" onClick={() => setSeed(Math.floor(Math.random() * 999999))}>Nouvelle prise</button>
         <button className="cso-btn" onClick={undo}>Annuler</button>
         <button className="cso-btn" onClick={redo}>Rétablir</button>
@@ -411,7 +468,7 @@ export function Studio() {
           <Circle root={root} family={family} onRoot={setRoot} onFamily={setFamily} />
           <div className="cso-center-read">
             <p className="cso-symbol serif">{symbol}</p>
-            <p className="cso-note">{genre}. La basse slash n’est jamais simplifiée en extension.</p>
+            <p className="cso-note">{transport !== "stopped" ? `En lecture · ${arrangement.bars[activeBar]?.chord ?? ""}${arrangement.bars[activeBar]?.second ? ` puis ${arrangement.bars[activeBar]?.second}` : ""}` : "Le cercle prépare l’accord. La timeline le joue."}</p>
           </div>
           <div className="cso-qualities" aria-label="Qualités harmoniques">
             {FAMILIES.filter((item) => item.group === FAMILIES.find((entry) => entry.id === family)?.group).map((item) => (
@@ -436,6 +493,7 @@ export function Studio() {
           </div>
           <div className="cso-row" style={{ marginTop: 10 }}>
             <button className="cso-btn primary" onClick={placeChord}>Placer sur la mesure {active + 1}</button>
+            <button className="cso-btn" onClick={toggleSplit}>{bars[active]?.second ? "Une seule harmonie" : "Deux harmonies"}</button>
             <button className="cso-btn" onClick={audition}>Écouter l’accord</button>
           </div>
           <p className="cso-note">20 qualités viennent du dictionnaire du dépôt. Quatre familles manquantes pour arriver à 24 ne sont pas inventées. Gammes Live Thinking documentées : {LIVE_THINKING_SCALES.map((scale) => scale.label).join(", ")}. La sixième n’est pas inventée.</p>
@@ -463,7 +521,7 @@ export function Studio() {
             {arrangement.bars.map((bar, index) => (
               <button key={bar.number} className={`cso-bar ${index === active ? "on" : ""} ${transport !== "stopped" && index === activeBar ? "live" : ""}`} onClick={() => setActive(index)}>
                 <small>{bar.section} · {bar.number}{bars[index]?.locked ? " · lock" : ""} · {bar.origin}</small>
-                <strong>{bar.chord}</strong>
+                <strong>{bar.second ? `${bar.chord} · ${bar.second}` : bar.chord}</strong>
                 <em>{bar.texture}</em>
               </button>
             ))}
@@ -482,6 +540,7 @@ export function Studio() {
                 return { ...current, [number]: arrangement.notes.filter((note) => note.bar === number) };
               });
             }}>{bars[active]?.locked ? "Déverrouiller la mesure" : "Verrouiller la mesure"}</button>
+            <button className="cso-btn" onClick={lockSection}>Verrouiller la section</button>
             <label className="cso-field">Importer un MIDI de départ
               <input type="file" accept=".mid,.midi,.xml,.musicxml,audio/midi" onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -537,7 +596,8 @@ export function Studio() {
           </section>
           <section className="cso-panel">
             <h2>Axel Style Data</h2>
-            <p className="cso-note">Analyse locale. Rien n’est envoyé. Ce n’est pas un modèle neuronal.</p>
+            <p className="cso-note">{importedProfile ? "Profil JSON actif, prioritaire sur le corpus local." : "Analyse locale. Rien n’est envoyé. Ce n’est pas un modèle neuronal."}</p>
+            {profileNote ? <p className="cso-warn">{profileNote}</p> : null}
             <div
               className="cso-drop"
               onDragOver={(event) => event.preventDefault()}
@@ -566,6 +626,14 @@ export function Studio() {
             ))}
             <div className="cso-row">
               <button className="cso-btn" disabled={!profile} onClick={() => profile && download(exportProfile(profile), "axel-style-profile.json")}>Exporter le profil</button>
+              <label className="cso-btn">
+                Réimporter
+                <input hidden type="file" accept="application/json,.json" onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void importProfileFile(file);
+                }} />
+              </label>
+              <button className="cso-btn" onClick={() => { setImportedProfile(null); setProfileNote(""); }}>Oublier le profil</button>
               <button className="cso-btn" onClick={() => void deleteCorpus().then(() => setCorpus([]))}>Vider le corpus</button>
             </div>
           </section>

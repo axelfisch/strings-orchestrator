@@ -46,6 +46,7 @@ export interface ArrangementBar {
   number: number;
   section: SectionId;
   chord: string;
+  second: string | null;
   texture: string;
   origin: Origin;
   locked: boolean;
@@ -85,6 +86,8 @@ export interface Arrangement {
 
 export interface ProjectBar {
   chord: string;
+  /** Optional harmony on the second half of the bar. Never simplified into the first chord. */
+  second?: string | null;
   locked: boolean;
   origin: Origin;
 }

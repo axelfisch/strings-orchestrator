@@ -151,6 +151,14 @@ const CLEFS: Record<VoiceName, string> = {
   Contrabass: `<clef><sign>F</sign><line>4</line></clef>`,
 };
 
+function harmonyXml(symbol: string, offset: number | null): string {
+  const rootMatch = symbol.match(/^([A-G])(#|b)?/);
+  const rootStep = rootMatch?.[1] ?? "C";
+  const alter = rootMatch?.[2] === "#" ? "<root-alter>1</root-alter>" : rootMatch?.[2] === "b" ? "<root-alter>-1</root-alter>" : "";
+  const shift = offset && offset > 0 ? `<offset>${offset}</offset>` : "";
+  return `${shift}<harmony><root><root-step>${rootStep}</root-step>${alter}</root><kind text="${escapeXml(symbol)}">none</kind></harmony>`;
+}
+
 export function toMusicXml(arrangement: Arrangement): Blob {
   const divisions = 4;
   const fifths = keyFifths(arrangement.key, arrangement.mode);
@@ -171,12 +179,9 @@ export function toMusicXml(arrangement: Arrangement): Blob {
           partIndex === 0 && (bar.number === 1 || bar.section !== arrangement.bars[bar.number - 2]?.section)
             ? `<direction placement="above"><direction-type><rehearsal>${bar.section}</rehearsal></direction-type></direction>`
             : "";
-        const rootMatch = bar.chord.match(/^([A-G])(#|b)?/);
-        const rootStep = rootMatch?.[1] ?? "C";
-        const alter = rootMatch?.[2] === "#" ? "<root-alter>1</root-alter>" : rootMatch?.[2] === "b" ? "<root-alter>-1</root-alter>" : "";
         const harmony =
           partIndex === 0
-            ? `<harmony><root><root-step>${rootStep}</root-step>${alter}</root><kind text="${escapeXml(bar.chord)}">none</kind></harmony>`
+            ? `${harmonyXml(bar.chord, null)}${bar.second ? harmonyXml(bar.second, Math.round((quartersPerBar(arrangement.meter) * divisions) / 2)) : ""}`
             : "";
         const dynamic =
           partIndex === 0 && (bar.number === 1 || bar.section !== arrangement.bars[bar.number - 2]?.section)
@@ -220,7 +225,7 @@ export function toChart(arrangement: Arrangement): Blob {
     ...(["A1", "A2", "B", "A3"] as const).flatMap((section) => {
       const bars = arrangement.bars.filter((bar) => bar.section === section);
       if (!bars.length) return [];
-      return [`[${section}]`, ...chunkLines(bars.map((bar) => bar.chord)), ""];
+      return [`[${section}]`, ...chunkLines(bars.map((bar) => (bar.second ? `${bar.chord} ${bar.second}` : bar.chord))), ""];
     }),
   ];
   return new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
@@ -229,7 +234,7 @@ export function toChart(arrangement: Arrangement): Blob {
 function chunkLines(chords: string[]): string[] {
   const lines: string[] = [];
   for (let index = 0; index < chords.length; index += 4) {
-    lines.push(`| ${chords.slice(index, index + 4).map((chord) => chord.padEnd(16)).join("| ")}|`);
+    lines.push(`| ${chords.slice(index, index + 4).map((chord) => chord.padEnd(28)).join("| ")}|`);
   }
   return lines;
 }

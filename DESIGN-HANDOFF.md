@@ -13,7 +13,7 @@ Il n’y a plus deux onglets. Trois colonnes à partir de 1100 px, une colonne e
 ## États à prévoir
 
 - Mesure active (sélection) distincte de la mesure en lecture.
-- Mesure verrouillée.
+- Une mesure peut porter une seconde harmonie sur la deuxième moitié. Les deux symboles restent distincts.
 - Voix verrouillée.
 - Transport : arrêté, lecture, pause.
 - Loop actif.

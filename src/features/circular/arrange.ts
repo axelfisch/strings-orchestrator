@@ -198,6 +198,7 @@ export function arrange(input: ArrangeInput): Arrangement {
     number: index + 1,
     section: sectionFor(index, input.bars.length),
     chord: bar.chord || `${input.key}${input.mode === "minor" ? "min9" : "add9"}`,
+    second: bar.second || null,
     texture: textures[Math.min(3, Math.floor(index / Math.max(1, Math.ceil(input.bars.length / 4))))] ?? textures[0],
     origin: bar.origin,
     locked: bar.locked,
@@ -220,7 +221,15 @@ export function arrange(input: ArrangeInput): Arrangement {
       });
       return;
     }
-    const parsed = parseChord(bar.chord);
+    const regions = bar.second
+      ? [
+          { symbol: bar.chord, at: 0, span: qpb / 2 },
+          { symbol: bar.second, at: qpb / 2, span: qpb / 2 },
+        ]
+      : [{ symbol: bar.chord, at: 0, span: qpb }];
+
+    regions.forEach((region) => {
+    const parsed = parseChord(region.symbol);
     const color = parsed.tones.filter((tone) => {
       const rel = (tone - parsed.root + 12) % 12;
       return rel === 1 || rel === 2 || rel === 3 || rel === 6 || rel === 8 || rel === 9;
@@ -239,13 +248,15 @@ export function arrange(input: ArrangeInput): Arrangement {
       possibleSlots += 1;
       const heldVoice = input.holds?.voices?.[voice]?.filter((note) => note.bar === bar.number);
       if (heldVoice && heldVoice.length) {
-        notes.push(...heldVoice);
-        const last = heldVoice[heldVoice.length - 1]?.midi;
-        if (last !== undefined) {
-          previous[voice] = last;
-          stack.push(last);
+        if (region.at === 0) {
+          notes.push(...heldVoice);
+          const last = heldVoice[heldVoice.length - 1]?.midi;
+          if (last !== undefined) {
+            previous[voice] = last;
+            stack.push(last);
+          }
+          activeSlots += 1;
         }
-        activeSlots += 1;
         return;
       }
       const range = { ...RANGES[voice] };
@@ -305,27 +316,29 @@ export function arrange(input: ArrangeInput): Arrangement {
         pattern = pattern.map((slot) => ({ ...slot, at: Math.min(qpb - 0.25, slot.at + 0.5) }));
       }
       pattern.forEach((slot, slotIndex) => {
-        const room = qpb - slot.at;
+        const scaledAt = (slot.at / qpb) * region.span;
+        const room = region.span - scaledAt;
         if (room <= 0.08) return;
         let pitch = midi;
         if (moving) {
           const step = contour[slotIndex % contour.length] ?? 0;
           const direction = voice === "Cello" ? -step : step;
-          pitch = snap(parsed.tones, midi + direction, range);
+          pitch = snap(voice === "Violin I" && color.length ? color : parsed.tones, midi + direction, range);
           midi = pitch;
           previous[voice] = pitch;
         }
-        const duration = Math.max(0.18, Math.min(slot.dur, room - 0.02));
+        const duration = Math.max(0.18, Math.min((slot.dur / qpb) * region.span, room - 0.02));
         const velocity = voice === "Violin I" ? 86 : voice === "Contrabass" ? 78 : 62 + (5 - VOICES.indexOf(voice)) * 3;
         notes.push({
           voice,
           midi: pitch,
-          start: index * qpb + slot.at,
+          start: index * qpb + region.at + scaledAt,
           duration,
           velocity: bar.section === "B" ? Math.min(104, velocity + 8) : velocity,
           bar: bar.number,
         });
       });
+    });
     });
   });
 
