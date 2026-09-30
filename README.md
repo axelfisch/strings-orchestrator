@@ -1,3 +1,9 @@
+# Circular Strings Orchestrator
+
+Un seul espace de travail : cercle, timeline 8/16/32, six voix, lecture, corpus local et exports MIDI / MusicXML / grille. Les anciens onglets « 32-Bar Arranger » et « Chord Builder » sont remplacés par cet espace. Le code précédent reste dans le dépôt, il n’est plus l’écran d’entrée.
+
+Le site public se construit toujours avec `npm run build` vers `dist`.
+
 # StringsOrchestrator - AiXEL 32-Bar Chamber Strings
 
 An Axel Fisch-inspired modern chamber-string arranger for Violin I, Violin II,
