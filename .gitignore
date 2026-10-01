@@ -2,4 +2,6 @@ node_modules/
 dist/
 .netlify/
 .playwright-cli/
+output/
+tmp/
 .env

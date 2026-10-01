@@ -24,18 +24,24 @@ export interface PlayerHandle {
   dispose: () => void;
 }
 
+export function playbackSchedule(arrangement: Arrangement): NoteEvent[] {
+  return arrangement.notes
+    .map((note) => ({ ...note }))
+    .sort((a, b) => a.start - b.start || a.voice.localeCompare(b.voice) || a.midi - b.midi);
+}
+
 export async function createPlayer(onEnd: () => void): Promise<PlayerHandle> {
   const Tone: ToneModule = await import("tone");
   const synths = Object.fromEntries(
     VOICES.map((voice) => {
-      const synth = new Tone.Synth({
+      const synth = new Tone.PolySynth(Tone.Synth, {
         oscillator: { type: CHAINS[voice].oscillator },
         envelope: { attack: 0.06, decay: 0.12, sustain: 0.72, release: 0.45 },
         volume: CHAINS[voice].volume,
       }).toDestination();
       return [voice, synth];
     }),
-  ) as Record<VoiceName, import("tone").Synth>;
+  ) as Record<VoiceName, import("tone").PolySynth>;
   let part: import("tone").Part | null = null;
   let loop = false;
   let endBeat = 0;
@@ -45,17 +51,17 @@ export async function createPlayer(onEnd: () => void): Promise<PlayerHandle> {
   const clearPart = () => {
     part?.dispose();
     part = null;
-    VOICES.forEach((voice) => synths[voice].triggerRelease());
+    VOICES.forEach((voice) => synths[voice].releaseAll());
   };
 
   const schedule = (arrangement: Arrangement) => {
     clearPart();
     const qpb = quartersPerBar(arrangement.meter);
-    Tone.getTransport().timeSignature = [qpb, 4];
+    Tone.getTransport().timeSignature = arrangement.meter === "6/8" ? [6, 8] : [qpb, 4];
     Tone.getTransport().bpm.value = arrangement.tempo;
-    const events = arrangement.notes.map((note) => ({ ...note, time: quarterToTransport(note.start, qpb) }));
+    const events = playbackSchedule(arrangement).map((note) => ({ ...note, time: quarterToTransport(note.start, qpb) }));
     part = new Tone.Part((time, note: NoteEvent & { time: string }) => {
-      const seconds = Math.max(0.05, note.duration * (60 / Tone.getTransport().bpm.value) * 0.92);
+      const seconds = Math.max(0.05, note.duration * (60 / Tone.getTransport().bpm.value));
       synths[note.voice].triggerAttackRelease(Tone.Frequency(note.midi, "midi").toFrequency(), seconds, time, note.velocity / 127);
     }, events);
     part.start(0);
@@ -74,7 +80,7 @@ export async function createPlayer(onEnd: () => void): Promise<PlayerHandle> {
       paused = false;
       Tone.getTransport().stop();
       Tone.getTransport().position = 0;
-      VOICES.forEach((voice) => synths[voice].triggerRelease());
+      VOICES.forEach((voice) => synths[voice].releaseAll());
       onEnd();
     }
   }, "8n");
@@ -92,7 +98,7 @@ export async function createPlayer(onEnd: () => void): Promise<PlayerHandle> {
     pause() {
       if (!playing) return;
       Tone.getTransport().pause();
-      VOICES.forEach((voice) => synths[voice].triggerRelease());
+      VOICES.forEach((voice) => synths[voice].releaseAll());
       paused = true;
       playing = false;
     },

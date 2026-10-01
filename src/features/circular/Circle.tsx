@@ -1,10 +1,10 @@
-import { FAMILIES, ROOTS, type FamilyId } from "./types";
+import { FAMILIES, ROOTS } from "./types";
 
 interface CircleProps {
   root: string;
-  family: FamilyId;
+  family: string;
   onRoot: (root: string) => void;
-  onFamily: (family: FamilyId) => void;
+  onFamily: (family: string) => void;
 }
 
 function wedge(cx: number, cy: number, r0: number, r1: number, a0: number, a1: number): string {

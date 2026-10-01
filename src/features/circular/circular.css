@@ -46,6 +46,7 @@ html, body, #root {
 .cso-header h1 { margin: 0; font-size: 42px; line-height: 0.95; }
 .cso-kicker { margin: 0 0 6px; color: var(--amber); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; }
 .cso-sub { margin: 6px 0 0; color: var(--muted); max-width: 640px; }
+.cso-project-head { display: grid; grid-template-columns: minmax(180px, 1fr); gap: 8px; width: min(360px, 100%); }
 
 .cso-toolbar, .cso-panel, .cso-card {
   background: var(--panel);
@@ -84,6 +85,8 @@ html, body, #root {
   text-transform: none;
 }
 
+.cso input[type="file"] { color: var(--muted); max-width: 100%; font-size: 12px; }
+
 .cso-btn, .cso-icon {
   min-height: 44px;
   border-radius: 10px;
@@ -119,6 +122,12 @@ html, body, #root {
   flex-wrap: wrap;
   gap: 6px;
 }
+.cso-between { justify-content: space-between; align-items: start; }
+.cso-space-top { margin-top: 10px; }
+.cso-segmented { display: flex; gap: 6px; }
+.cso-inline-edit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.cso-inline-edit small { color: var(--muted); text-transform: none; letter-spacing: 0; }
+.cso-controls-grid { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 8px; margin-bottom: 10px; }
 
 .cso-chip {
   min-height: 36px;
@@ -203,7 +212,17 @@ html, body, #root {
   padding: 12px;
   color: var(--muted);
 }
+.cso-drop input { margin-top: 8px; }
 .cso-file { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.cso-file-block { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.cso-file-block .cso-file { border: 0; }
+.cso-file-block .cso-btn { min-height: 34px; padding: 0 9px; font-size: 12px; }
+.cso-import-summary { display: grid; gap: 8px; margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; }
+.cso-detected { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; max-height: 180px; overflow: auto; color: var(--muted); }
+.cso-table-wrap { max-width: 100%; overflow-x: auto; }
+.cso table { width: 100%; border-collapse: collapse; font-size: 11px; color: var(--muted); }
+.cso th, .cso td { padding: 5px; border-bottom: 1px solid var(--line); text-align: right; }
+.cso th:first-child, .cso td:first-child { text-align: left; }
 .cso-warn { color: #e7b3a2; }
 
 @media (min-width: 1100px) {
@@ -215,5 +234,12 @@ html, body, #root {
   .cso-header { width: min(1440px, calc(100% - 20px)); padding-top: 18px; }
   .cso-toolbar, .cso-main, .cso-foot { width: min(1440px, calc(100% - 20px)); }
   .cso-header h1 { font-size: 32px; }
+  .cso-header { align-items: stretch; flex-direction: column; }
+  .cso-project-head { width: 100%; }
+  .cso-controls-grid, .cso-inline-edit { grid-template-columns: 1fr; }
   .cso-map { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 721px) and (max-width: 1250px) {
+  .cso-controls-grid { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
 }
