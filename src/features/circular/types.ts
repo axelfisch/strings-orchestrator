@@ -259,6 +259,14 @@ export interface ProjectDocument {
   lockedVoices: VoiceName[];
   voiceHolds: Partial<Record<VoiceName, NoteEvent[]>>;
   barHolds: Record<number, NoteEvent[]>;
+  /** Optional and disabled by default so every existing project keeps the V1 engine. */
+  styleV2?: StyleV2Settings;
+}
+
+export interface StyleV2Settings {
+  enabled: boolean;
+  candidateCount: 2 | 3 | 4;
+  indexId?: string;
 }
 
 /** Canonical chamber dictionary, transposed from one interval table in theory.ts. */

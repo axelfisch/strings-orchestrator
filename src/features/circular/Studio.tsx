@@ -11,6 +11,7 @@ import { analyzeSourceFile } from "./importer";
 import { createPlayer, type PlayerHandle } from "./playback";
 import { activeProjectId, createProject, deleteProject, duplicateProject, loadProjectLibrary, projectFromFile, saveProject } from "./projects";
 import { joinBarHarmony, quartersPerBar, setBarHarmony, splitBarHarmony, symbolFor } from "./theory";
+import { loadFragmentIndex, runStyleEngine, type FragmentIndex } from "./style-v2";
 import {
   FAMILIES, GENRES, INVERSIONS, LIVE_THINKING_SCALES, METERS, ROOTS, STYLES, VOICE_LABELS, VOICES,
   type HarmonyLanguage, type ImportAnalysis, type ImportMode, type LegacyStyleProfile, type MelodyMode,
@@ -93,6 +94,7 @@ export function Studio() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [corpusBusy, setCorpusBusy] = useState(false);
+  const [styleIndex, setStyleIndex] = useState<FragmentIndex | null>(null);
   const [exportState, setExportState] = useState<ExportState | null>(null);
   const [welcomeDismissed, setWelcomeDismissed] = useState(readWelcomeDismissed);
   const history = useRef<ProjectDocument[]>([]);
@@ -103,13 +105,18 @@ export function Studio() {
   const notify = (lines: string[], tone: NoticeTone) => setFeedback(lines.length ? { lines, tone } : null);
 
   const profile = useMemo(() => importedProfile ?? profileFrom(corpus), [corpus, importedProfile]);
-  const arrangement = useMemo(() => arrange({
-    bars: project.bars, key: project.keyName, mode: project.mode, style: project.style, meter: project.meter,
-    tempo: project.tempo, seed: project.seed, influence: project.influence, profile, title: project.name,
-    harmonicLanguage: project.harmonicLanguage, scale: project.scale, melodyMode: project.melodyMode,
-    manualMelodyVoice: project.manualMelodyVoice, registerMode: project.registerMode,
-    importedMelody: project.importedMelody, holds: { voices: project.voiceHolds, bars: project.barHolds },
-  }), [project, profile]);
+  const engineResult = useMemo(() => runStyleEngine({
+    settings: project.styleV2,
+    index: styleIndex,
+    arrangeInput: {
+      bars: project.bars, key: project.keyName, mode: project.mode, style: project.style, meter: project.meter,
+      tempo: project.tempo, seed: project.seed, influence: project.influence, profile, title: project.name,
+      harmonicLanguage: project.harmonicLanguage, scale: project.scale, melodyMode: project.melodyMode,
+      manualMelodyVoice: project.manualMelodyVoice, registerMode: project.registerMode,
+      importedMelody: project.importedMelody, holds: { voices: project.voiceHolds, bars: project.barHolds },
+    },
+  }), [project, profile, styleIndex]);
+  const arrangement = engineResult.arrangement;
   const totalBeats = Math.max(1, arrangement.bars.length * quartersPerBar(project.meter));
   const playingBar = Math.min(arrangement.bars.length - 1, Math.max(0, Math.floor(beat / quartersPerBar(project.meter))));
   const chordSymbol = symbolFor(root, family, bass);
@@ -139,6 +146,21 @@ export function Studio() {
     }, 350);
     return () => window.clearTimeout(timer);
   }, [project]);
+
+  useEffect(() => {
+    let mounted = true;
+    const indexId = project.styleV2?.enabled ? project.styleV2.indexId : undefined;
+    if (!indexId) {
+      setStyleIndex(null);
+      return () => { mounted = false; };
+    }
+    void loadFragmentIndex(indexId).then((index) => {
+      if (mounted) setStyleIndex(index);
+    }).catch(() => {
+      if (mounted) setStyleIndex(null);
+    });
+    return () => { mounted = false; };
+  }, [project.styleV2?.enabled, project.styleV2?.indexId]);
 
   useEffect(() => {
     void listCorpus().then(setCorpus).catch(() => setCorpus([])).finally(() => setCorpusLoaded(true));
