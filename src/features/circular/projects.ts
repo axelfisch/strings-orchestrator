@@ -52,6 +52,7 @@ export function createProject(overrides: Partial<ProjectDocument> = {}): Project
     lockedVoices: overrides.lockedVoices ?? [],
     voiceHolds: overrides.voiceHolds ?? {},
     barHolds: overrides.barHolds ?? {},
+    styleV2: overrides.styleV2 ?? { enabled: false, candidateCount: 3 },
   };
 }
 
@@ -111,6 +112,14 @@ export function migrateProject(value: unknown): ProjectDocument {
     lockedVoices: Array.isArray(raw.lockedVoices) ? raw.lockedVoices as ProjectDocument["lockedVoices"] : [],
     voiceHolds: raw.voiceHolds && typeof raw.voiceHolds === "object" ? raw.voiceHolds as ProjectDocument["voiceHolds"] : {},
     barHolds: raw.barHolds && typeof raw.barHolds === "object" ? raw.barHolds as ProjectDocument["barHolds"] : {},
+    styleV2: raw.styleV2 && typeof raw.styleV2 === "object"
+      ? {
+          enabled: (raw.styleV2 as Record<string, unknown>).enabled === true,
+          candidateCount: (raw.styleV2 as Record<string, unknown>).candidateCount === 2 || (raw.styleV2 as Record<string, unknown>).candidateCount === 4 ? (raw.styleV2 as { candidateCount: 2 | 4 }).candidateCount : 3,
+          indexId: typeof (raw.styleV2 as Record<string, unknown>).indexId === "string" ? (raw.styleV2 as { indexId: string }).indexId : undefined,
+          selectedCandidateId: typeof (raw.styleV2 as Record<string, unknown>).selectedCandidateId === "string" ? (raw.styleV2 as { selectedCandidateId: string }).selectedCandidateId : undefined,
+        }
+      : { enabled: false, candidateCount: 3 },
   });
   while (base.bars.length < base.length) {
     const generated = generateGrid({

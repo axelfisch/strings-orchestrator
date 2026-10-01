@@ -10,10 +10,11 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test:engine": "tsx scripts/check-engine.ts",
+    "test:style-v2": "tsx scripts/test-style-v2.ts",
     "test:imports": "tsx scripts/test-imports.ts",
     "test:exports": "tsx scripts/test-exports.ts",
     "test:music": "tsx scripts/test-music.ts",
-    "test:all": "npm run typecheck && npm run lint && npm run test:engine && npm run test:imports && npm run test:exports && npm run test:music && npm run build"
+    "test:all": "npm run typecheck && npm run lint && npm run test:engine && npm run test:style-v2 && npm run test:imports && npm run test:exports && npm run test:music && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
