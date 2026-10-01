@@ -1,5 +1,5 @@
 import { RANGES, chooseScaleForChord, parseChord, scalePitchClasses } from "../theory";
-import type { HarmonyEvent, Meter, NoteEvent, VoiceName } from "../types";
+import type { HarmonyEvent, Meter, NoteEvent, ScaleId, VoiceName } from "../types";
 import type { CompiledPattern, PatternIR, TransformationTrace } from "./types";
 
 export interface CompileContext {
@@ -9,12 +9,13 @@ export interface CompileContext {
   harmonies: { startRatio: number; endRatio: number; event: HarmonyEvent }[];
   velocity?: number;
   trace?: TransformationTrace[];
+  scale?: ScaleId;
 }
 
-function allowedFor(event: HarmonyEvent): number[] {
+function allowedFor(event: HarmonyEvent, scaleOverride?: ScaleId): number[] {
   const chord = parseChord(event.symbol);
-  const scale = scalePitchClasses(chooseScaleForChord(event.symbol), chord.root);
-  return [...new Set([...chord.tones, ...scale])];
+  const scale = scalePitchClasses(scaleOverride ?? chooseScaleForChord(event.symbol), chord.root);
+  return [...new Set([...chord.tones, ...scale, ...(chord.bass === null ? [] : [chord.bass])])];
 }
 
 function fitPitch(voice: VoiceName, target: number, allowed: number[]): number {
@@ -41,7 +42,7 @@ export function compilePattern(pattern: PatternIR, context: CompileContext): Com
     const segment = context.harmonies.find((row) => note.startRatio >= row.startRatio && note.startRatio < row.endRatio)
       ?? context.harmonies[0];
     const event = segment?.event;
-    const allowed = event ? allowedFor(event) : Array.from({ length: 12 }, (_, index) => index);
+    const allowed = event ? allowedFor(event, context.scale) : Array.from({ length: 12 }, (_, index) => index);
     const start = context.startBeat + note.startRatio * context.spanBeats;
     const duration = Math.max(0.08, Math.min(note.durationRatio * context.spanBeats, context.startBeat + context.spanBeats - start));
     return {

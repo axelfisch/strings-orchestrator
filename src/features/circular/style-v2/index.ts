@@ -10,6 +10,7 @@ export * from "./pattern-compiler";
 export * from "./pattern-ir";
 export * from "./profile";
 export * from "./retrieval";
+export * from "./report";
 export * from "./schemas";
 export * from "./scoring";
 export * from "./storage";

@@ -1,4 +1,6 @@
 import { Rng } from "../rng";
+import { RANGES } from "../theory";
+import { VOICES, type VoiceName } from "../types";
 import type { PatternIR, TransformationTrace } from "./types";
 
 export interface PatternTransformOptions {
@@ -28,4 +30,28 @@ export function transformPattern(pattern: PatternIR, options: PatternTransformOp
     }))
     .map((note) => ({ ...note, durationRatio: Math.min(note.durationRatio, 1 - note.startRatio) }));
   return { pattern: { ...pattern, patternId: `${pattern.patternId}:t${options.seed}`, notes }, trace };
+}
+
+export function remapPatternMelody(pattern: PatternIR, target: VoiceName): { pattern: PatternIR; trace: TransformationTrace[] } {
+  if (pattern.anchorVoice === target) return { pattern, trace: [] };
+  const original = pattern.anchorVoice;
+  const swap = (voice: VoiceName): VoiceName => voice === original ? target : voice === target ? original : voice;
+  const targetCenter = RANGES[target].center;
+  return {
+    pattern: {
+      ...pattern,
+      patternId: `${pattern.patternId}:m${VOICES.indexOf(target)}`,
+      anchorVoice: target,
+      notes: pattern.notes.map((note) => {
+        const voice = swap(note.voice);
+        // Pattern pitches are relative to the old anchor. Rebase every voice
+        // around its own register before changing the anchor; otherwise a
+        // cello-led pattern can lift all inner voices by several octaves.
+        const estimatedMidi = pattern.anchorMidi + note.relativePitch;
+        const registerDeviation = estimatedMidi - RANGES[note.voice].center;
+        return { ...note, voice, relativePitch: RANGES[voice].center + registerDeviation - targetCenter };
+      }),
+    },
+    trace: [{ id: "melody-role-swap", parameters: { from: original, to: target } }],
+  };
 }

@@ -155,6 +155,29 @@ const enabled = runStyleEngine({ arrangeInput, settings: { enabled: true, candid
 assert.ok(enabled.candidates.length >= 2);
 assert.ok(enabled.candidates.some((candidate) => candidate.explanation.engine === "style-v2"));
 
+for (const melodyVoice of VOICES) {
+  const manualCandidates = generateStyleCandidates({ ...arrangeInput, melodyMode: "manual", manualMelodyVoice: melodyVoice }, index, 2);
+  const v2 = manualCandidates.find((candidate) => candidate.explanation.engine === "style-v2");
+  assert.ok(v2, `a V2 candidate exists for ${melodyVoice}`);
+  assert.equal(v2?.arrangement.report.melodyBySection.A1, melodyVoice, `${melodyVoice} is reported as melody carrier`);
+  assert.ok(v2?.arrangement.notes.some((note) => note.voice === melodyVoice && note.role === "melody"), `${melodyVoice} receives melody notes`);
+  VOICES.forEach((voice) => assert.equal(
+    v2?.arrangement.report.voices[voice].noteCount,
+    v2?.arrangement.notes.filter((note) => note.voice === voice).length,
+    `report is recalculated for ${voice}`,
+  ));
+}
+const celloCandidate = generateStyleCandidates({ ...arrangeInput, melodyMode: "manual", manualMelodyVoice: "Cello" }, index, 2)
+  .find((candidate) => candidate.explanation.engine === "style-v2");
+const celloMelody = celloCandidate?.arrangement.notes.find((note) => note.voice === "Cello" && note.role === "melody");
+assert.ok(celloMelody);
+assert.ok(celloCandidate?.arrangement.notes.some((note) => note.start === celloMelody?.start && note.voice !== "Cello" && note.midi > (celloMelody?.midi ?? 127)), "melody is not forced to be the top note");
+
+const selectedV2 = enabled.candidates.find((candidate) => candidate.explanation.engine === "style-v2");
+assert.ok(selectedV2);
+const explicitlySelected = runStyleEngine({ arrangeInput, settings: { enabled: true, candidateCount: 3, selectedCandidateId: selectedV2?.id }, index });
+assert.equal(explicitlySelected.selectedCandidateId, selectedV2?.id);
+
 const record = preferenceRecord("context-fixture", candidates, candidates[0].id, 1000, { ratings: { axelSimilarity: 4 }, reasonTags: ["sounds_like_axel"] });
 assert.equal(record.winnerId, candidates[0].id);
 assert.equal(record.ratings?.axelSimilarity, 4);

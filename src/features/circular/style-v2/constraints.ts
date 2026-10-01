@@ -1,4 +1,4 @@
-import { RANGES, parseChord, quartersPerBar } from "../theory";
+import { RANGES, chooseScaleForChord, parseChord, quartersPerBar, scalePitchClasses } from "../theory";
 import { VOICES, type Arrangement, type NoteEvent } from "../types";
 import type { ConstraintIssue, ConstraintReport } from "./types";
 
@@ -21,6 +21,19 @@ export function checkArrangementConstraints(arrangement: Arrangement): Constrain
     if (note.duration <= 0 || note.start < 0) issues.push({ code: "time", severity: "error", message: "Durée ou départ invalide", voice: note.voice, bar: note.bar });
     const barStart = (note.bar - 1) * qpb;
     if (note.start < barStart - 0.001 || note.start + note.duration > barStart + qpb + 0.001) issues.push({ code: "bar-overflow", severity: "error", message: "Note hors de sa mesure", voice: note.voice, bar: note.bar });
+    const bar = arrangement.bars[note.bar - 1];
+    const local = note.start - barStart;
+    const harmony = bar?.harmonies.find((event) => local >= event.position - 0.001 && local < event.position + event.duration + 0.001) ?? bar?.harmonies[0];
+    if (harmony && note.source !== "imported") {
+      const parsed = parseChord(harmony.symbol);
+      const allowed = new Set([
+        ...parsed.tones,
+        ...scalePitchClasses(arrangement.scale, parsed.root),
+        ...scalePitchClasses(chooseScaleForChord(harmony.symbol), parsed.root),
+        ...(parsed.bass === null ? [] : [parsed.bass]),
+      ]);
+      if (!allowed.has(((note.midi % 12) + 12) % 12)) issues.push({ code: "pitch-legality", severity: "error", message: `Note hors accord/gamme sur ${harmony.symbol}`, voice: note.voice, bar: note.bar });
+    }
   });
   VOICES.forEach((voice) => {
     if (!arrangement.notes.some((note) => note.voice === voice)) issues.push({ code: "missing-voice", severity: "error", message: `${voice} est absente`, voice });
@@ -53,7 +66,9 @@ export function checkArrangementConstraints(arrangement: Arrangement): Constrain
       if ((oldInterval === 0 || oldInterval === 7) && (nextInterval === 0 || nextInterval === 7) && upperDirection === lowerDirection && upperDirection !== 0) parallels += 1;
     });
   });
-  if (crossings) issues.push({ code: "crossings", severity: "warning", message: `${crossings} croisement(s)` });
+  // A few intentional crossings can belong to a transferred melody, but a
+  // pattern that repeatedly inverts the full sextet is not a usable candidate.
+  if (crossings) issues.push({ code: "crossings", severity: crossings > 24 ? "error" : "warning", message: `${crossings} croisement(s)` });
   if (parallels) issues.push({ code: "parallels", severity: "warning", message: `${parallels} parallèle(s) de quinte/octave` });
   return { valid: !issues.some((issue) => issue.severity === "error"), issues, parallels, crossings };
 }

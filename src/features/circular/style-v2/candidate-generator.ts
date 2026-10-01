@@ -1,40 +1,13 @@
 import { arrange, type ArrangeInput } from "../arrange";
 import { quartersPerBar } from "../theory";
-import { VOICES, type Arrangement, type NoteEvent, type VoiceName } from "../types";
+import { VOICES, type Arrangement, type NoteEvent, type VoiceName, type VoiceRole } from "../types";
 import { checkArrangementConstraints } from "./constraints";
 import { compilePattern } from "./pattern-compiler";
+import { recalculateArrangementReport } from "./report";
 import { searchPatterns } from "./retrieval";
 import { arrangementFeatures, pitchDiversity, scoreCandidate } from "./scoring";
-import { transformPattern } from "./transformations";
+import { remapPatternMelody, transformPattern } from "./transformations";
 import type { FragmentIndex, PreferenceRecord, StyleCandidate, TransformationTrace } from "./types";
-
-function refreshDerivedReport(arrangement: Arrangement, notes: NoteEvent[], influence: string): Arrangement {
-  const qpb = quartersPerBar(arrangement.meter);
-  const voices = Object.fromEntries(VOICES.map((voice) => {
-    const values = notes.filter((note) => note.voice === voice).map((note) => note.midi).sort((a, b) => a - b);
-    const middle = values.length ? values[Math.floor(values.length / 2)] : 0;
-    return [voice, {
-      min: values.length ? values[0] : 0,
-      max: values.length ? values[values.length - 1] : 0,
-      median: middle,
-      centralRatio: arrangement.report.voices[voice]?.centralRatio ?? 1,
-      noteCount: values.length,
-    }];
-  })) as Arrangement["report"]["voices"];
-  const activeBeats = notes.reduce((sum, note) => sum + note.duration, 0);
-  const possible = Math.max(1, arrangement.bars.length * qpb * VOICES.length);
-  return {
-    ...arrangement,
-    notes: [...notes].sort((a, b) => a.start - b.start || VOICES.indexOf(a.voice) - VOICES.indexOf(b.voice)),
-    report: {
-      ...arrangement.report,
-      density: activeBeats / possible,
-      restRatio: Math.max(0, 1 - activeBeats / possible),
-      voices,
-      influences: [...arrangement.report.influences, influence],
-    },
-  };
-}
 
 function harmoniesForBlock(arrangement: Arrangement, start: number, span: number) {
   const qpb = quartersPerBar(arrangement.meter);
@@ -49,18 +22,26 @@ function harmoniesForBlock(arrangement: Arrangement, start: number, span: number
   }));
 }
 
-function applyPattern(base: Arrangement, patternIndex: number, pattern: Parameters<typeof compilePattern>[0], trace: TransformationTrace[]): Arrangement {
+function applyPattern(base: Arrangement, patternIndex: number, pattern: Parameters<typeof compilePattern>[0], melody: VoiceName, trace: TransformationTrace[]): Arrangement {
   const total = base.bars.length * quartersPerBar(base.meter);
   const blockSpan = Math.max(quartersPerBar(base.meter), pattern.spanBeats);
   const voices = new Set<VoiceName>(pattern.notes.map((note) => note.voice));
   const generated: NoteEvent[] = [];
   for (let start = 0; start < total; start += blockSpan) {
     const span = Math.min(blockSpan, total - start);
-    const compiled = compilePattern(pattern, { startBeat: start, spanBeats: span, meter: base.meter, harmonies: harmoniesForBlock(base, start, span), trace });
+    const compiled = compilePattern(pattern, { startBeat: start, spanBeats: span, meter: base.meter, harmonies: harmoniesForBlock(base, start, span), trace, scale: base.scale });
     generated.push(...compiled.notes);
   }
   const retained = base.notes.filter((note) => !voices.has(note.voice));
-  return refreshDerivedReport(base, [...retained, ...generated], `Style V2 : motif ${pattern.sourceFragmentId}, variante ${patternIndex + 1}`);
+  const sectionPlans = base.sectionPlans.map((plan) => {
+    const roles = { ...plan.roles };
+    roles[plan.melody] = plan.melody === "Contrabass" ? "foundation" : "harmony";
+    roles[melody] = "melody";
+    const counterline = plan.counterline === melody ? (melody === "Cello" ? "Violin II" : "Cello") : plan.counterline;
+    roles[counterline] = "counterline";
+    return { ...plan, melody, counterline, roles: roles as Record<VoiceName, VoiceRole>, explanation: `Style V2 : motif local adapté, mélodie confiée à ${melody}.` };
+  });
+  return recalculateArrangementReport({ ...base, sectionPlans, notes: [...retained, ...generated] }, [`Style V2 : motif ${pattern.sourceFragmentId}, variante ${patternIndex + 1}.`]);
 }
 
 function candidate(id: string, arrangement: Arrangement, engine: "v1" | "style-v2", summary: string, sourcePatternIds: string[], sourceWorkIds: string[], trace: TransformationTrace[], target: ReturnType<typeof arrangementFeatures>, sourceDistance: number, preferences: PreferenceRecord[], diversity: number): StyleCandidate {
@@ -76,7 +57,12 @@ export function generateStyleCandidates(input: ArrangeInput, index: FragmentInde
   const hits = searchPatterns(index, { features: target, split: "train", allowedVoices: [...VOICES] }, Math.max(1, count - 1));
   const derived = hits.map((hit, patternIndex) => {
     const transformed = transformPattern(hit.pattern, { seed: input.seed + patternIndex + 1, simplify: patternIndex ? 0.08 : 0 });
-    const arrangement = applyPattern(base, patternIndex, transformed.pattern, transformed.trace);
+    const melody = input.melodyMode === "manual" ? input.manualMelodyVoice ?? "Violin I"
+      : input.melodyMode === "preserve-import" && input.importedMelody?.[0] ? input.importedMelody[0].voice
+        : base.sectionPlans[patternIndex % Math.max(1, base.sectionPlans.length)]?.melody ?? "Violin I";
+    const remapped = remapPatternMelody(transformed.pattern, melody);
+    const trace = [...transformed.trace, ...remapped.trace];
+    const arrangement = applyPattern(base, patternIndex, remapped.pattern, melody, trace);
     return candidate(
       `v2-${hit.pattern.patternId}-${patternIndex + 1}`,
       arrangement,
@@ -84,7 +70,7 @@ export function generateStyleCandidates(input: ArrangeInput, index: FragmentInde
       `Motif local retrouvé puis transformé; ${hit.reasons.join(", ")}.`,
       [hit.pattern.patternId],
       [hit.pattern.workId],
-      transformed.trace,
+      trace,
       target,
       hit.distance,
       preferences,

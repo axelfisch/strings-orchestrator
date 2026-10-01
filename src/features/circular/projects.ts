@@ -117,6 +117,7 @@ export function migrateProject(value: unknown): ProjectDocument {
           enabled: (raw.styleV2 as Record<string, unknown>).enabled === true,
           candidateCount: (raw.styleV2 as Record<string, unknown>).candidateCount === 2 || (raw.styleV2 as Record<string, unknown>).candidateCount === 4 ? (raw.styleV2 as { candidateCount: 2 | 4 }).candidateCount : 3,
           indexId: typeof (raw.styleV2 as Record<string, unknown>).indexId === "string" ? (raw.styleV2 as { indexId: string }).indexId : undefined,
+          selectedCandidateId: typeof (raw.styleV2 as Record<string, unknown>).selectedCandidateId === "string" ? (raw.styleV2 as { selectedCandidateId: string }).selectedCandidateId : undefined,
         }
       : { enabled: false, candidateCount: 3 },
   });

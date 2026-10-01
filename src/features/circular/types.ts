@@ -267,6 +267,7 @@ export interface StyleV2Settings {
   enabled: boolean;
   candidateCount: 2 | 3 | 4;
   indexId?: string;
+  selectedCandidateId?: string;
 }
 
 /** Canonical chamber dictionary, transposed from one interval table in theory.ts. */

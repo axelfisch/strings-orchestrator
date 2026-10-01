@@ -11,7 +11,10 @@ import { analyzeSourceFile } from "./importer";
 import { createPlayer, type PlayerHandle } from "./playback";
 import { activeProjectId, createProject, deleteProject, duplicateProject, loadProjectLibrary, projectFromFile, saveProject } from "./projects";
 import { joinBarHarmony, quartersPerBar, setBarHarmony, splitBarHarmony, symbolFor } from "./theory";
-import { loadFragmentIndex, runStyleEngine, type FragmentIndex } from "./style-v2";
+import {
+  clearPreferences, loadFragmentIndex, loadPreferences, preferenceRecord, runStyleEngine, saveFragmentIndex,
+  savePreference, validateFragmentIndex, type FragmentIndex, type PreferenceRecord,
+} from "./style-v2";
 import {
   FAMILIES, GENRES, INVERSIONS, LIVE_THINKING_SCALES, METERS, ROOTS, STYLES, VOICE_LABELS, VOICES,
   type HarmonyLanguage, type ImportAnalysis, type ImportMode, type LegacyStyleProfile, type MelodyMode,
@@ -95,6 +98,7 @@ export function Studio() {
   const [importError, setImportError] = useState<string | null>(null);
   const [corpusBusy, setCorpusBusy] = useState(false);
   const [styleIndex, setStyleIndex] = useState<FragmentIndex | null>(null);
+  const [stylePreferences, setStylePreferences] = useState<PreferenceRecord[]>(() => loadPreferences());
   const [exportState, setExportState] = useState<ExportState | null>(null);
   const [welcomeDismissed, setWelcomeDismissed] = useState(readWelcomeDismissed);
   const history = useRef<ProjectDocument[]>([]);
@@ -108,6 +112,7 @@ export function Studio() {
   const engineResult = useMemo(() => runStyleEngine({
     settings: project.styleV2,
     index: styleIndex,
+    preferences: stylePreferences,
     arrangeInput: {
       bars: project.bars, key: project.keyName, mode: project.mode, style: project.style, meter: project.meter,
       tempo: project.tempo, seed: project.seed, influence: project.influence, profile, title: project.name,
@@ -115,7 +120,7 @@ export function Studio() {
       manualMelodyVoice: project.manualMelodyVoice, registerMode: project.registerMode,
       importedMelody: project.importedMelody, holds: { voices: project.voiceHolds, bars: project.barHolds },
     },
-  }), [project, profile, styleIndex]);
+  }), [project, profile, styleIndex, stylePreferences]);
   const arrangement = engineResult.arrangement;
   const totalBeats = Math.max(1, arrangement.bars.length * quartersPerBar(project.meter));
   const playingBar = Math.min(arrangement.bars.length - 1, Math.max(0, Math.floor(beat / quartersPerBar(project.meter))));
@@ -342,6 +347,37 @@ export function Studio() {
       notify([`Profil chargé : ${migrated.sourceFiles} fichier(s), ${migrated.noteCount} notes.`], "success");
     } catch { notify(["Profil JSON illisible."], "error"); }
   };
+  const importStyleIndex = async (file: File) => {
+    try {
+      const parsed = JSON.parse(await file.text()) as FragmentIndex;
+      const errors = validateFragmentIndex(parsed);
+      if (errors.length) throw new Error(errors.join(", "));
+      await saveFragmentIndex(parsed);
+      setStyleIndex(parsed);
+      commit((current) => ({
+        ...current,
+        styleV2: { enabled: true, candidateCount: current.styleV2?.candidateCount ?? 3, indexId: parsed.indexId },
+      }));
+      notify([`Index Style V2 chargé : ${parsed.patterns.length} motif(s), ${parsed.indexId}.`], "success");
+    } catch (error) {
+      notify([`Index Style V2 refusé : ${error instanceof Error ? error.message : "fichier JSON invalide"}.`], "error");
+    }
+  };
+  const chooseStyleCandidate = (candidateId: string) => {
+    commit((current) => ({
+      ...current,
+      styleV2: { enabled: true, candidateCount: current.styleV2?.candidateCount ?? 3, indexId: current.styleV2?.indexId, selectedCandidateId: candidateId },
+    }));
+  };
+  const keepStylePreference = () => {
+    const selected = engineResult.candidates.find((candidate) => candidate.id === engineResult.selectedCandidateId);
+    if (!selected || engineResult.candidates.length < 2) return;
+    const contextHash = `${project.keyName}:${project.mode}:${project.meter}:${project.style}:${project.seed}:${project.bars.map((bar) => bar.harmonies.map((event) => event.symbol).join("+")).join("|")}`;
+    const record = preferenceRecord(contextHash, engineResult.candidates, selected.id, Date.now());
+    savePreference(record);
+    setStylePreferences(loadPreferences());
+    notify([`Préférence locale enregistrée pour ${selected.id}. Aucune donnée n’a quitté le navigateur.`], "success");
+  };
   const audition = async () => {
     const previewBar = splitBarHarmony(project.bars[activeBar], chordSymbol, "4/4");
     const preview = arrange({ bars: [joinBarHarmony(previewBar, "4/4")], key: project.keyName, mode: project.mode,
@@ -563,6 +599,31 @@ export function Studio() {
               <button type="button" className="cso-btn" onClick={() => { setVariantB(cloneProject(project)); setShowingB(false); notify(["État actuel gardé comme variante B."], "success"); }}><Copy aria-hidden size={16} />Garder comme variante B</button>
               <button type="button" className="cso-btn" disabled={!variantB} onClick={() => { if (!variantB) return; const current = cloneProject(project); setProject(variantB); setVariantB(current); setShowingB((value) => !value); }}>{showingB ? "Revenir à A" : "Comparer B"}</button>
             </div>
+            <div className="cso-subsection" aria-labelledby="cso-style-v2-title">
+              <h3 id="cso-style-v2-title">Moteur Axel Style V2</h3>
+              <p className="cso-help">{engineResult.reason}. Le score est technique et comparatif, jamais une mesure de beauté.</p>
+              <div className="cso-actions" role="group" aria-label="Candidats du moteur Axel Style V2">
+                {engineResult.candidates.map((candidate, index) => (
+                  <button key={candidate.id} type="button" className={`cso-btn ${candidate.id === engineResult.selectedCandidateId ? "is-on" : ""}`}
+                    aria-pressed={candidate.id === engineResult.selectedCandidateId} onClick={() => chooseStyleCandidate(candidate.id)}>
+                    {String.fromCharCode(65 + index)} · {candidate.explanation.engine === "v1" ? "Référence V1" : "Style V2"} · {Math.round(candidate.explanation.score.total * 100)}
+                  </button>
+                ))}
+                <button type="button" className="cso-btn" disabled={engineResult.candidates.length < 2} onClick={keepStylePreference}>Préférer cette version</button>
+              </div>
+              {engineResult.candidates.length ? (
+                <details className="cso-details">
+                  <summary>Pourquoi cette version ?</summary>
+                  {engineResult.candidates.filter((candidate) => candidate.id === engineResult.selectedCandidateId).map((candidate) => (
+                    <ul key={candidate.id} className="cso-report">
+                      <li>{candidate.explanation.summary}</li>
+                      <li>Conduite des voix {Math.round(candidate.explanation.score.voiceLeading * 100)} · registre {Math.round(candidate.explanation.score.registerBalance * 100)} · proximité stylistique {Math.round(candidate.explanation.score.styleMatch * 100)}.</li>
+                      <li>Sources locales : {candidate.explanation.sourcePatternIds.length ? candidate.explanation.sourcePatternIds.join(", ") : "aucune — baseline V1"}.</li>
+                    </ul>
+                  ))}
+                </details>
+              ) : null}
+            </div>
           </section>
         </div>
 
@@ -688,6 +749,19 @@ export function Studio() {
                 <button type="button" className={`cso-btn ${!importedProfile ? "is-on" : ""}`} aria-pressed={!importedProfile} onClick={() => setImportedProfile(null)}>Profil calculé localement</button>
                 <button type="button" className="cso-btn cso-btn--danger" disabled={!corpus.length} onClick={() => { if (window.confirm("Vider tout le corpus local ?")) void deleteCorpus().then(() => setCorpus([])); }}>Vider</button>
               </div>
+            </div>
+            <div className="cso-subsection">
+              <h3>Index symbolique V2</h3>
+              <p className="cso-help">Un index validé contient uniquement des motifs dérivés et leur provenance. Sans index, le moteur reste en V1.</p>
+              <div className="cso-actions">
+                <label className="cso-btn cso-file-btn"><FolderOpen aria-hidden size={16} />Charger un index V2<input className="cso-visually-hidden" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void importStyleIndex(file); }} /></label>
+                <button type="button" className={`cso-btn ${project.styleV2?.enabled ? "is-on" : ""}`} aria-pressed={!!project.styleV2?.enabled} disabled={!styleIndex}
+                  onClick={() => commit((current) => ({ ...current, styleV2: { enabled: !current.styleV2?.enabled, candidateCount: current.styleV2?.candidateCount ?? 3, indexId: styleIndex?.indexId } }))}>
+                  {project.styleV2?.enabled ? "Désactiver V2" : "Activer V2"}
+                </button>
+                <button type="button" className="cso-btn" disabled={!stylePreferences.length} onClick={() => { clearPreferences(); setStylePreferences([]); notify(["Préférences Style V2 effacées localement."], "info"); }}>Effacer les préférences ({stylePreferences.length})</button>
+              </div>
+              <p className="cso-help">{styleIndex ? `${styleIndex.patterns.length} motif(s) · ${styleIndex.indexId}` : "Aucun index chargé"} · V2 {project.styleV2?.enabled ? "activé" : "désactivé"}.</p>
             </div>
           </TabPanel>
 
