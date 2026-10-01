@@ -447,7 +447,7 @@ export function Studio() {
             <div className="cso-inline-edit">{currentBar?.harmonies.map((harmony, index) => <label key={`${activeBar}-${index}`} className="cso-field">
               <span>{index === 0 ? "Accord 1 (1re harmonie)" : "Accord 2 (2e harmonie)"}</span>
               <input type="text" value={harmony.symbol} onChange={(event) => editHarmony(index as 0 | 1, event.target.value)} />
-              {harmony.confidence !== undefined ? <small className="cso-help">Confiance de détection {Math.round(harmony.confidence * 100)} %</small> : null}</label>)}</div>
+              {harmony.confidence !== undefined ? <small className="cso-help">Confiance de détection {Math.round(harmony.confidence * 100)}&nbsp;%</small> : null}</label>)}</div>
           </fieldset>
         </section>
 
